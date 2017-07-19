@@ -6,9 +6,12 @@ import (
 	"log"
 	"os/exec"
 	"strings"
+	"unicode/utf8"
+
+	"github.com/timdeve/giadd/screen"
 )
 
-type file struct {
+type File struct {
 	Status string
 	File   string
 }
@@ -24,17 +27,29 @@ func main() {
 
 	files := marshallOutputInFiles(out.String())
 
-	fmt.Printf("%q\n", files)
+	printList(files)
 }
 
-func marshallOutputInFiles(outputStr string) []file {
-	var files []file
+func printList(files []File) {
+	longest := findLongestStatus(files)
+	var lines []string
+
+	for i, file := range files {
+		line := fmt.Sprintf("%v) %v %v", i+1, padRight(file.Status, longest), file.File)
+		lines = append(lines, line)
+	}
+
+	screen.Print(lines)
+}
+
+func marshallOutputInFiles(outputStr string) []File {
+	var files []File
 
 	for _, str := range strings.Split(outputStr, "\n") {
 		str = standardizeSpaces(str)
 		splitedStr := strings.Split(str, " ")
 		if len(splitedStr) == 2 {
-			thisFile := file{
+			thisFile := File{
 				Status: splitedStr[0],
 				File:   splitedStr[1],
 			}
@@ -47,4 +62,24 @@ func marshallOutputInFiles(outputStr string) []file {
 
 func standardizeSpaces(str string) string {
 	return strings.Join(strings.Fields(str), " ")
+}
+
+func padRight(str string, length int) string {
+	for {
+		if len(str) >= length {
+			return str
+		}
+		str = str + " "
+	}
+}
+
+func findLongestStatus(files []File) int {
+	var longest int
+	for _, file := range files {
+		length := utf8.RuneCountInString(file.Status)
+		if length > longest {
+			longest = length
+		}
+	}
+	return longest
 }
