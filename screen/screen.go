@@ -16,7 +16,7 @@ type termSize struct {
 
 var maxLines int
 
-// Print print out an array of string to the screen by clearing it first
+// Print prints out an array of string to the screen by clearing it first
 func Print(lines []string) {
 	clearScreen()
 
