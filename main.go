@@ -12,7 +12,7 @@ import (
 	"github.com/timdeve/giadd/screen"
 )
 
-type File struct {
+type file struct {
 	Status   string
 	File     string
 	Selected bool
@@ -20,7 +20,7 @@ type File struct {
 
 var (
 	currentCursorPosition int
-	files                 []File
+	files                 []file
 )
 
 func main() {
@@ -45,7 +45,7 @@ func main() {
 func readKeyPress() {
 keyPressLoop:
 	for {
-		ascii, _, _ := getChar()
+		ascii, _ := getChar()
 
 		switch ascii {
 		case 27:
@@ -74,9 +74,9 @@ keyPressLoop:
 func addMarkedFiles() {
 	filesToAdd := []string{"add"}
 
-	for _, file := range files {
-		if file.Selected {
-			filesToAdd = append(filesToAdd, file.File)
+	for _, f := range files {
+		if f.Selected {
+			filesToAdd = append(filesToAdd, f.File)
 		}
 	}
 
@@ -107,8 +107,7 @@ func markSelectedFile() {
 	files[currentCursorPosition].Selected = !files[currentCursorPosition].Selected
 }
 
-// Returns either an ascii code, or (if input is an arrow) a Javascript key code.
-func getChar() (ascii int, keyCode int, err error) {
+func getChar() (ascii int, err error) {
 	t, _ := term.Open("/dev/tty")
 	term.RawMode(t)
 	bytes := make([]byte, 3)
@@ -118,68 +117,50 @@ func getChar() (ascii int, keyCode int, err error) {
 	if err != nil {
 		return
 	}
-	if numRead == 3 && bytes[0] == 27 && bytes[1] == 91 {
-		// Three-character control sequence, beginning with "ESC-[".
 
-		// Since there are no ASCII codes for arrow keys, we use
-		// Javascript key codes.
-		if bytes[2] == 65 {
-			// Up
-			keyCode = 38
-		} else if bytes[2] == 66 {
-			// Down
-			keyCode = 40
-		} else if bytes[2] == 67 {
-			// Right
-			keyCode = 39
-		} else if bytes[2] == 68 {
-			// Left
-			keyCode = 37
-		}
-	} else if numRead == 1 {
+	if numRead == 1 {
 		ascii = int(bytes[0])
-	} else {
-		// Two characters read??
 	}
+
 	t.Restore()
 	t.Close()
 	return
 }
 
-func printList(files []File) {
+func printList(files []file) {
 	longest := findLongestStatus(files)
 	var lines []string
 	var cursor string
 	var selected string
 
-	for i, file := range files {
+	for i, f := range files {
 		if i == currentCursorPosition {
 			cursor = ">"
 		} else {
 			cursor = " "
 		}
 
-		if file.Selected {
+		if f.Selected {
 			selected = "*"
 		} else {
 			selected = " "
 		}
 
-		line := fmt.Sprintf("%v [%v] %v %v", cursor, selected, padRight(file.Status, longest), file.File)
+		line := fmt.Sprintf("%v [%v] %v %v", cursor, selected, padRight(f.Status, longest), f.File)
 		lines = append(lines, line)
 	}
 
 	screen.Print(lines)
 }
 
-func marshallOutputInFiles(outputStr string) []File {
-	var files []File
+func marshallOutputInFiles(outputStr string) []file {
+	var files []file
 
 	for _, str := range strings.Split(outputStr, "\n") {
 		str = standardizeSpaces(str)
 		splitedStr := strings.Split(str, " ")
 		if len(splitedStr) == 2 {
-			thisFile := File{
+			thisFile := file{
 				Status:   splitedStr[0],
 				File:     splitedStr[1],
 				Selected: false,
@@ -204,10 +185,10 @@ func padRight(str string, length int) string {
 	}
 }
 
-func findLongestStatus(files []File) int {
+func findLongestStatus(files []file) int {
 	var longest int
-	for _, file := range files {
-		length := utf8.RuneCountInString(file.Status)
+	for _, f := range files {
+		length := utf8.RuneCountInString(f.Status)
 		if length > longest {
 			longest = length
 		}
