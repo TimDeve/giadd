@@ -35,7 +35,11 @@ func main() {
 	files = marshallOutputInFiles(out.String())
 
 	printList(files)
-	readKeyPress()
+	if len(files) > 0 {
+		readKeyPress()
+	} else {
+		screen.Print([]string{"No modified files. Exiting."})
+	}
 }
 
 func readKeyPress() {
