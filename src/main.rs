@@ -29,6 +29,7 @@ enum_from_primitive! {
 struct File {
     status: String,
     path: String,
+    isSelected: bool,
 }
 
 fn main() {
@@ -41,11 +42,17 @@ fn main() {
             String::from_utf8(output.stdout).expect("Problem parsing status"),
         );
 
-        println!("{:?}", files);
+        display(fmt_files_to_strings(files));
 
-        set_terminal_to_raw();
+        println!("");
+
         loop {
+            print!("\x1b[1F");
+            print!("\x1b[1G");
+
+            set_terminal_to_raw();
             read_key(&original_termios).unwrap();
+            reset_terminal(&original_termios);
         }
     } else {
         print!("{}", String::from_utf8_lossy(&output.stderr))
@@ -66,6 +73,7 @@ fn marshal_status_in_files(status: String) -> Vec<File> {
         .map(|line| File {
             status: line[0..2].to_string(),
             path: line[3..].to_string(),
+            isSelected: false,
         }).collect()
 }
 
@@ -77,6 +85,25 @@ fn set_terminal_to_raw() {
 
 fn reset_terminal(original_termios: &Termios) {
     tcsetattr(STDIN_FILENO, TCSANOW, original_termios).unwrap();
+}
+
+fn fmt_files_to_strings(files: Vec<File>) -> Vec<String> {
+    files
+        .iter()
+        .map(|file| {
+            format!(
+                "[{}] {} {}",
+                if file.isSelected { "*" } else { " " },
+                file.status,
+                file.path
+            )
+        }).collect()
+}
+
+fn display(lines: Vec<String>) {
+    for line in lines {
+        println!("{}", line);
+    }
 }
 
 fn read_key(original_termios: &Termios) -> io::Result<()> {
@@ -125,13 +152,39 @@ mod tests {
                 File {
                     status: String::from(" M"),
                     path: String::from("src/main.rs"),
+                    isSelected: false,
                 },
                 File {
                     status: String::from("??"),
                     path: String::from("wow"),
+                    isSelected: false,
                 },
             ],
             files
+        )
+    }
+
+    #[test]
+    fn files_to_strings() {
+        let files = vec![
+            File {
+                status: String::from("??"),
+                path: String::from("/hello"),
+                isSelected: true,
+            },
+            File {
+                status: String::from(" M"),
+                path: String::from("/is-it-me-you're-looking-for"),
+                isSelected: false,
+            },
+        ];
+
+        assert_eq!(
+            fmt_files_to_strings(files),
+            vec![
+                String::from("[*] ?? /hello"),
+                String::from("[ ]  M /is-it-me-you're-looking-for")
+            ]
         )
     }
 }
