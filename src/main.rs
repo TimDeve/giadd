@@ -24,17 +24,52 @@ enum_from_primitive! {
     }
 }
 
+#[derive(Debug, PartialEq)]
+struct File {
+    status: String,
+    path: String,
+}
+
 fn main() {
     ctrlc::set_handler(|| {
         set_terminal_to_cooked();
         process::exit(130);
     }).expect("Error setting ctrl-c handler");
 
-    set_terminal_to_rare();
+    let output = get_git_status();
 
-    loop {
-        read_key().unwrap();
+    if output.status.success() {
+        let files = marshal_status_in_files(
+            String::from_utf8(output.stdout).expect("Problem parsing status"),
+        );
+
+        println!("{:?}", files);
+
+        set_terminal_to_rare();
+
+        loop {
+            read_key().unwrap();
+        }
+    } else {
+        print!("{}", String::from_utf8_lossy(&output.stderr))
     }
+}
+
+fn get_git_status() -> process::Output {
+    process::Command::new("git")
+        .arg("status")
+        .arg("--porcelain")
+        .output()
+        .expect("failed to execute process")
+}
+
+fn marshal_status_in_files(status: String) -> Vec<File> {
+    status
+        .lines()
+        .map(|line| File {
+            status: line[0..2].to_string(),
+            path: line[3..].to_string(),
+        }).collect()
 }
 
 fn set_terminal_to_rare() {
@@ -71,4 +106,29 @@ fn read_key() -> io::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn turns_status_into_files() {
+        let status = String::from(" M src/main.rs\n?? wow");
+        let files = marshal_status_in_files(status);
+
+        assert_eq!(
+            vec![
+                File {
+                    status: String::from(" M"),
+                    path: String::from("src/main.rs"),
+                },
+                File {
+                    status: String::from("??"),
+                    path: String::from("wow"),
+                },
+            ],
+            files
+        )
+    }
 }
