@@ -1,6 +1,5 @@
 #[macro_use]
 extern crate enum_primitive;
-extern crate ctrlc;
 extern crate libc;
 extern crate num;
 extern crate termios;
@@ -11,12 +10,14 @@ use std::io;
 use std::io::Read;
 use std::io::Write;
 use std::process;
-use termios::{tcsetattr, Termios, ECHO, ICANON, TCSANOW};
+use termios::{cfmakeraw, tcsetattr, Termios, TCSANOW};
 
 enum_from_primitive! {
     #[derive(Debug, PartialEq)]
     enum Keys {
-        Enter = 10,
+        CtrlC = 3,
+        Enter = 13,
+        Escape = 27,
         Space = 32,
         J = 106,
         K = 107,
@@ -31,10 +32,7 @@ struct File {
 }
 
 fn main() {
-    ctrlc::set_handler(|| {
-        set_terminal_to_cooked();
-        process::exit(130);
-    }).expect("Error setting ctrl-c handler");
+    let original_termios = Termios::from_fd(STDIN_FILENO).unwrap();
 
     let output = get_git_status();
 
@@ -45,10 +43,9 @@ fn main() {
 
         println!("{:?}", files);
 
-        set_terminal_to_rare();
-
+        set_terminal_to_raw();
         loop {
-            read_key().unwrap();
+            read_key(&original_termios).unwrap();
         }
     } else {
         print!("{}", String::from_utf8_lossy(&output.stderr))
@@ -72,33 +69,39 @@ fn marshal_status_in_files(status: String) -> Vec<File> {
         }).collect()
 }
 
-fn set_terminal_to_rare() {
+fn set_terminal_to_raw() {
     let mut termios = Termios::from_fd(STDIN_FILENO).unwrap();
-    termios.c_lflag &= !(ICANON | ECHO);
+    cfmakeraw(&mut termios);
     tcsetattr(STDIN_FILENO, TCSANOW, &mut termios).unwrap();
 }
 
-fn set_terminal_to_cooked() {
-    let mut termios = Termios::from_fd(STDIN_FILENO).unwrap();
-    termios.c_lflag |= !(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &mut termios).unwrap();
+fn reset_terminal(original_termios: &Termios) {
+    tcsetattr(STDIN_FILENO, TCSANOW, original_termios).unwrap();
 }
 
-fn read_key() -> io::Result<()> {
+fn read_key(original_termios: &Termios) -> io::Result<()> {
     let stdout = io::stdout();
     let mut reader = io::stdin();
-    let mut buffer = [0; 1];
+    let mut buffer = [0; 3];
 
     stdout.lock().flush()?;
-    reader.read_exact(&mut buffer)?;
+    reader.read(&mut buffer)?;
+
+    if buffer[1] != 0 {
+        return Ok(());
+    }
 
     if let Some(key) = Keys::from_u8(buffer[0]) {
         match key {
             Keys::J => println!("J"),
             Keys::K => println!("K"),
-            Keys::Q => {
-                set_terminal_to_cooked();
+            Keys::Q | Keys::Escape => {
+                reset_terminal(original_termios);
                 process::exit(0);
+            }
+            Keys::CtrlC => {
+                reset_terminal(original_termios);
+                process::exit(130);
             }
             Keys::Enter => println!("Enter"),
             Keys::Space => println!("Space"),
