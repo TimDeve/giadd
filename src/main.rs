@@ -60,7 +60,15 @@ fn get_git_status() -> process::Output {
         .arg("status")
         .arg("--porcelain")
         .output()
-        .expect("failed to execute process")
+        .expect("Failed to get git status")
+}
+
+fn git_add(paths: Vec<String>) -> process::Output {
+    process::Command::new("git")
+        .arg("add")
+        .args(paths)
+        .output()
+        .expect("Failed to add files")
 }
 
 fn marshal_status_in_files(status: String) -> Vec<File> {
@@ -116,13 +124,12 @@ fn display(lines: Vec<String>) {
     }
 }
 
-fn join_selected_files(files: &Vec<File>) -> String {
+fn get_selected_files_path(files: &Vec<File>) -> Vec<String> {
     files
         .iter()
         .filter(|file| file.is_selected)
         .map(|file| file.path.clone())
-        .collect::<Vec<String>>()
-        .join(" ")
+        .collect()
 }
 
 fn read_key(
@@ -167,9 +174,19 @@ fn read_key(
             }
             Keys::Enter => {
                 reset_terminal(original_termios);
-                let paths = join_selected_files(&files);
-                println!("{}", paths);
-                process::exit(0);
+                let paths = get_selected_files_path(&files);
+                let output = git_add(paths);
+
+                if output.status.success() {
+                    print!("{}", String::from_utf8_lossy(&output.stdout));
+                    process::exit(0);
+                } else {
+                    print!("{}", String::from_utf8_lossy(&output.stderr));
+                    match output.status.code() {
+                        Some(code) => process::exit(code),
+                        None => process::exit(1),
+                    }
+                }
             }
             Keys::Space => {
                 files[*cursor_position].is_selected = !files[*cursor_position].is_selected
