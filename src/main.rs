@@ -33,6 +33,7 @@ struct File {
 }
 
 fn main() {
+    let mut max_line_number = 0;
     let mut cursor_position = 0;
     let original_termios = Termios::from_fd(STDIN_FILENO).unwrap();
 
@@ -44,7 +45,10 @@ fn main() {
         );
 
         loop {
-            display(add_cursor(cursor_position, fmt_files_to_strings(&files)));
+            display(
+                &mut max_line_number,
+                add_cursor(cursor_position, fmt_files_to_strings(&files)),
+            );
             println!("");
             set_terminal_to_raw();
             read_key(&original_termios, &mut cursor_position, &mut files).unwrap();
@@ -118,7 +122,19 @@ fn fmt_files_to_strings(files: &Vec<File>) -> Vec<String> {
         }).collect()
 }
 
-fn display(lines: Vec<String>) {
+fn move_cursor_up(line: usize) {
+    if line != 0 {
+        print!("\x1b[{}A", line);
+    }
+}
+
+fn display(max_line_number: &mut usize, lines: Vec<String>) {
+    if *max_line_number != 0 {
+        move_cursor_up(*max_line_number + 1);
+    }
+
+    *max_line_number = lines.len();
+
     for line in lines {
         println!("{}", line);
     }
