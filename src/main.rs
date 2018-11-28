@@ -281,30 +281,4 @@ mod tests {
             vec!["  Line 1", "> Line 2", "  Line 3"]
         );
     }
-
-    #[test]
-    fn joins_selected_files() {
-        let files = vec![
-            File {
-                status: String::from("??"),
-                path: String::from("/hello"),
-                is_selected: true,
-            },
-            File {
-                status: String::from(" M"),
-                path: String::from("/it's-me"),
-                is_selected: false,
-            },
-            File {
-                status: String::from(" M"),
-                path: String::from("/i-was-wondering"),
-                is_selected: true,
-            },
-        ];
-
-        assert_eq!(
-            join_selected_files(&files),
-            "/hello /i-was-wondering".to_string()
-        )
-    }
 }
