@@ -87,11 +87,9 @@ fn read_input(selector_position: &mut usize, files: &mut Vec<File>) -> Option<i3
         match key {
             Keys::Q | Keys::Escape => return Some(0),
             Keys::CtrlC => return Some(130),
-            Keys::Space => {
-                files[*selector_position].is_selected = !files[*selector_position].is_selected
-            }
-            Keys::K => move_cursor_up(selector_position, files.len()),
-            Keys::J => move_cursor_down(selector_position, files.len()),
+            Keys::Space => select_file_under_selector(*selector_position, files),
+            Keys::K => move_selector_up(selector_position, files.len()),
+            Keys::J => move_selector_down(selector_position, files.len()),
             Keys::Enter => {
                 let paths = get_selected_files_path(&files);
                 let output = git_add(paths);
@@ -112,7 +110,11 @@ fn read_input(selector_position: &mut usize, files: &mut Vec<File>) -> Option<i3
     return None;
 }
 
-fn move_cursor_down(selector_position: &mut usize, files_lenght: usize) {
+fn select_file_under_selector(selector_position: usize, files: &mut Vec<File>) {
+    files[selector_position].is_selected = !files[selector_position].is_selected
+}
+
+fn move_selector_down(selector_position: &mut usize, files_lenght: usize) {
     if *selector_position == files_lenght - 1 {
         *selector_position = 0;
     } else {
@@ -120,7 +122,7 @@ fn move_cursor_down(selector_position: &mut usize, files_lenght: usize) {
     }
 }
 
-fn move_cursor_up(selector_position: &mut usize, files_lenght: usize) {
+fn move_selector_up(selector_position: &mut usize, files_lenght: usize) {
     if *selector_position == 0 {
         *selector_position = files_lenght - 1;
     } else {
