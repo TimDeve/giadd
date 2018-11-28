@@ -2,6 +2,7 @@
 extern crate enum_primitive;
 extern crate libc;
 extern crate num;
+extern crate terminal_size;
 extern crate termios;
 
 use libc::STDIN_FILENO;
@@ -10,6 +11,7 @@ use std::io;
 use std::io::Read;
 use std::io::Write;
 use std::process;
+use terminal_size::{terminal_size, Width};
 use termios::{cfmakeraw, tcsetattr, Termios, TCSANOW};
 
 enum_from_primitive! {
@@ -49,10 +51,15 @@ fn main() {
                 &mut max_line_number,
                 add_cursor(cursor_position, fmt_files_to_strings(&files)),
             );
-            println!("");
+
             set_terminal_to_raw();
-            read_key(&original_termios, &mut cursor_position, &mut files).unwrap();
+            let exit_code = read_key(&mut cursor_position, &mut files);
             reset_terminal(&original_termios);
+
+            if let Some(code) = exit_code {
+                clear_screen(max_line_number);
+                process::exit(code);
+            }
         }
     } else {
         print!("{}", String::from_utf8_lossy(&output.stderr))
@@ -128,10 +135,20 @@ fn move_cursor_up(line: usize) {
     }
 }
 
-fn display(max_line_number: &mut usize, lines: Vec<String>) {
-    if *max_line_number != 0 {
-        move_cursor_up(*max_line_number + 1);
+fn clear_screen(line: usize) {
+    move_cursor_up(line);
+
+    let size = terminal_size();
+    if let Some((Width(w), _)) = size {
+        for _ in 0..line {
+            println!("{}", " ".repeat(w as usize));
+        }
+        move_cursor_up(line);
     }
+}
+
+fn display(max_line_number: &mut usize, lines: Vec<String>) {
+    clear_screen(*max_line_number);
 
     *max_line_number = lines.len();
 
@@ -148,20 +165,16 @@ fn get_selected_files_path(files: &Vec<File>) -> Vec<String> {
         .collect()
 }
 
-fn read_key(
-    original_termios: &Termios,
-    cursor_position: &mut usize,
-    files: &mut Vec<File>,
-) -> io::Result<()> {
+fn read_key(cursor_position: &mut usize, files: &mut Vec<File>) -> Option<i32> {
     let stdout = io::stdout();
     let mut reader = io::stdin();
     let mut buffer = [0; 3];
 
-    stdout.lock().flush()?;
-    reader.read(&mut buffer)?;
+    stdout.lock().flush().unwrap();
+    reader.read(&mut buffer).unwrap();
 
     if buffer[1] != 0 {
-        return Ok(());
+        return None;
     }
 
     if let Some(key) = Keys::from_u8(buffer[0]) {
@@ -180,28 +193,21 @@ fn read_key(
                     *cursor_position = *cursor_position - 1;
                 }
             }
-            Keys::Q | Keys::Escape => {
-                reset_terminal(original_termios);
-                process::exit(0);
-            }
-            Keys::CtrlC => {
-                reset_terminal(original_termios);
-                process::exit(130);
-            }
+            Keys::Q | Keys::Escape => return Some(0),
+            Keys::CtrlC => return Some(130),
             Keys::Enter => {
-                reset_terminal(original_termios);
                 let paths = get_selected_files_path(&files);
                 let output = git_add(paths);
 
                 if output.status.success() {
                     print!("{}", String::from_utf8_lossy(&output.stdout));
-                    process::exit(0);
+                    return Some(0);
                 } else {
                     print!("{}", String::from_utf8_lossy(&output.stderr));
-                    match output.status.code() {
-                        Some(code) => process::exit(code),
-                        None => process::exit(1),
-                    }
+                    return match output.status.code() {
+                        Some(code) => Some(code),
+                        None => Some(1),
+                    };
                 }
             }
             Keys::Space => {
@@ -209,8 +215,7 @@ fn read_key(
             }
         }
     }
-
-    Ok(())
+    return None;
 }
 
 #[cfg(test)]
