@@ -35,38 +35,100 @@ struct File {
 }
 
 fn main() {
-    let mut max_line_number = 0;
-    let mut cursor_position = 0;
-    let original_termios = Termios::from_fd(STDIN_FILENO).unwrap();
+    let mut max_number_of_lines = 0;
+    let mut selector_position = 0;
+    let original_term = Termios::from_fd(STDIN_FILENO).unwrap();
 
-    let output = get_git_status();
+    let git_status_output = git_status();
 
-    if output.status.success() {
-        let mut files = marshal_status_in_files(
-            String::from_utf8(output.stdout).expect("Problem parsing status"),
+    if !git_status_output.status.success() {
+        print!("{}", String::from_utf8_lossy(&git_status_output.stderr));
+        match git_status_output.status.code() {
+            Some(code) => process::exit(code),
+            None => process::exit(1),
+        };
+    }
+
+    let mut files = marshal_status_in_files(
+        String::from_utf8(git_status_output.stdout).expect("Problem parsing status"),
+    );
+
+    loop {
+        display(
+            &mut max_number_of_lines,
+            add_selector(selector_position, fmt_files_to_strings(&files)),
         );
 
-        loop {
-            display(
-                &mut max_line_number,
-                add_cursor(cursor_position, fmt_files_to_strings(&files)),
-            );
+        set_terminal_to_raw();
 
-            set_terminal_to_raw();
-            let exit_code = read_key(&mut cursor_position, &mut files);
-            reset_terminal(&original_termios);
-
-            if let Some(code) = exit_code {
-                clear_screen(max_line_number);
-                process::exit(code);
-            }
+        if let Some(exit_code) = read_input(&mut selector_position, &mut files) {
+            reset_terminal(&original_term);
+            clear_screen(max_number_of_lines);
+            process::exit(exit_code);
+        } else {
+            reset_terminal(&original_term);
         }
-    } else {
-        print!("{}", String::from_utf8_lossy(&output.stderr))
     }
 }
 
-fn get_git_status() -> process::Output {
+fn read_input(selector_position: &mut usize, files: &mut Vec<File>) -> Option<i32> {
+    let stdout = io::stdout();
+    let mut reader = io::stdin();
+    let mut buffer = [0; 3];
+
+    stdout.lock().flush().unwrap();
+    reader.read(&mut buffer).unwrap();
+
+    if buffer[1] != 0 {
+        return None;
+    }
+
+    if let Some(key) = Keys::from_u8(buffer[0]) {
+        match key {
+            Keys::Q | Keys::Escape => return Some(0),
+            Keys::CtrlC => return Some(130),
+            Keys::Space => {
+                files[*selector_position].is_selected = !files[*selector_position].is_selected
+            }
+            Keys::K => move_cursor_up(selector_position, files.len()),
+            Keys::J => move_cursor_down(selector_position, files.len()),
+            Keys::Enter => {
+                let paths = get_selected_files_path(&files);
+                let output = git_add(paths);
+
+                if output.status.success() {
+                    print!("{}", String::from_utf8_lossy(&output.stdout));
+                    return Some(0);
+                } else {
+                    print!("{}", String::from_utf8_lossy(&output.stderr));
+                    return match output.status.code() {
+                        Some(code) => Some(code),
+                        None => Some(1),
+                    };
+                }
+            }
+        }
+    }
+    return None;
+}
+
+fn move_cursor_down(selector_position: &mut usize, files_lenght: usize) {
+    if *selector_position == files_lenght - 1 {
+        *selector_position = 0;
+    } else {
+        *selector_position = *selector_position + 1;
+    }
+}
+
+fn move_cursor_up(selector_position: &mut usize, files_lenght: usize) {
+    if *selector_position == 0 {
+        *selector_position = files_lenght - 1;
+    } else {
+        *selector_position = *selector_position - 1;
+    }
+}
+
+fn git_status() -> process::Output {
     process::Command::new("git")
         .arg("status")
         .arg("--porcelain")
@@ -98,17 +160,17 @@ fn set_terminal_to_raw() {
     tcsetattr(STDIN_FILENO, TCSANOW, &mut termios).unwrap();
 }
 
-fn reset_terminal(original_termios: &Termios) {
-    tcsetattr(STDIN_FILENO, TCSANOW, original_termios).unwrap();
+fn reset_terminal(original_term: &Termios) {
+    tcsetattr(STDIN_FILENO, TCSANOW, original_term).unwrap();
 }
 
-fn add_cursor(cursor_position: usize, lines: Vec<String>) -> Vec<String> {
+fn add_selector(selector_position: usize, lines: Vec<String>) -> Vec<String> {
     let mut new_lines: Vec<String> = vec![];
 
     for (i, line) in lines.iter().enumerate() {
         new_lines.push(format!(
             "{} {}",
-            if cursor_position == i { ">" } else { " " },
+            if selector_position == i { ">" } else { " " },
             line
         ))
     }
@@ -129,21 +191,21 @@ fn fmt_files_to_strings(files: &Vec<File>) -> Vec<String> {
         }).collect()
 }
 
-fn move_cursor_up(line: usize) {
+fn move_terminal_cursor_up(line: usize) {
     if line != 0 {
         print!("\x1b[{}A", line);
     }
 }
 
 fn clear_screen(line: usize) {
-    move_cursor_up(line);
+    move_terminal_cursor_up(line);
 
     let size = terminal_size();
     if let Some((Width(w), _)) = size {
         for _ in 0..line {
             println!("{}", " ".repeat(w as usize));
         }
-        move_cursor_up(line);
+        move_terminal_cursor_up(line);
     }
 }
 
@@ -152,9 +214,7 @@ fn display(max_line_number: &mut usize, lines: Vec<String>) {
 
     *max_line_number = lines.len();
 
-    for line in lines {
-        println!("{}", line);
-    }
+    println!("{}", lines.join("\n"));
 }
 
 fn get_selected_files_path(files: &Vec<File>) -> Vec<String> {
@@ -163,59 +223,6 @@ fn get_selected_files_path(files: &Vec<File>) -> Vec<String> {
         .filter(|file| file.is_selected)
         .map(|file| file.path.clone())
         .collect()
-}
-
-fn read_key(cursor_position: &mut usize, files: &mut Vec<File>) -> Option<i32> {
-    let stdout = io::stdout();
-    let mut reader = io::stdin();
-    let mut buffer = [0; 3];
-
-    stdout.lock().flush().unwrap();
-    reader.read(&mut buffer).unwrap();
-
-    if buffer[1] != 0 {
-        return None;
-    }
-
-    if let Some(key) = Keys::from_u8(buffer[0]) {
-        match key {
-            Keys::J => {
-                if *cursor_position == files.len() - 1 {
-                    *cursor_position = 0;
-                } else {
-                    *cursor_position = *cursor_position + 1;
-                }
-            }
-            Keys::K => {
-                if *cursor_position == 0 {
-                    *cursor_position = files.len() - 1;
-                } else {
-                    *cursor_position = *cursor_position - 1;
-                }
-            }
-            Keys::Q | Keys::Escape => return Some(0),
-            Keys::CtrlC => return Some(130),
-            Keys::Enter => {
-                let paths = get_selected_files_path(&files);
-                let output = git_add(paths);
-
-                if output.status.success() {
-                    print!("{}", String::from_utf8_lossy(&output.stdout));
-                    return Some(0);
-                } else {
-                    print!("{}", String::from_utf8_lossy(&output.stderr));
-                    return match output.status.code() {
-                        Some(code) => Some(code),
-                        None => Some(1),
-                    };
-                }
-            }
-            Keys::Space => {
-                files[*cursor_position].is_selected = !files[*cursor_position].is_selected
-            }
-        }
-    }
-    return None;
 }
 
 #[cfg(test)]
@@ -269,7 +276,7 @@ mod tests {
     }
 
     #[test]
-    fn add_cursor_to_string() {
+    fn add_selector_to_string() {
         let lines = vec![
             "Line 1".to_string(),
             "Line 2".to_string(),
@@ -277,7 +284,7 @@ mod tests {
         ];
 
         assert_eq!(
-            add_cursor(1, lines),
+            add_selector(1, lines),
             vec!["  Line 1", "> Line 2", "  Line 3"]
         );
     }
