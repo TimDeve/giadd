@@ -114,17 +114,17 @@ fn select_file_under_selector(selector_position: usize, files: &mut Vec<File>) {
     files[selector_position].is_selected = !files[selector_position].is_selected
 }
 
-fn move_selector_down(selector_position: &mut usize, files_lenght: usize) {
-    if *selector_position == files_lenght - 1 {
+fn move_selector_down(selector_position: &mut usize, files_length: usize) {
+    if *selector_position == files_length - 1 {
         *selector_position = 0;
     } else {
         *selector_position = *selector_position + 1;
     }
 }
 
-fn move_selector_up(selector_position: &mut usize, files_lenght: usize) {
+fn move_selector_up(selector_position: &mut usize, files_length: usize) {
     if *selector_position == 0 {
-        *selector_position = files_lenght - 1;
+        *selector_position = files_length - 1;
     } else {
         *selector_position = *selector_position - 1;
     }
