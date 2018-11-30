@@ -1,3 +1,18 @@
+//! Stage files in git using a selector
+//!
+//! ```sh
+//! $ giadd
+//! > [ ]  M src/main.rs
+//!   [*] ?? a/new/file
+//!   [ ] ?? another/new/file
+//! ```
+//!
+//! # Keybinds
+//! j and k to navigate  
+//! q, escape to exit  
+//! space to select a file  
+//! enter to stage selected files  
+
 #[macro_use]
 extern crate enum_primitive;
 extern crate libc;
@@ -7,6 +22,7 @@ extern crate termios;
 
 use libc::STDIN_FILENO;
 use num::FromPrimitive;
+use std::env;
 use std::io;
 use std::io::Read;
 use std::io::Write;
@@ -35,6 +51,8 @@ struct File {
 }
 
 fn main() {
+    check_for_help_flag();
+
     let mut max_number_of_lines = 0;
     let mut selector_position = 0;
     let original_term = Termios::from_fd(STDIN_FILENO).unwrap();
@@ -108,6 +126,26 @@ fn read_input(selector_position: &mut usize, files: &mut Vec<File>) -> Option<i3
         }
     }
     return None;
+}
+
+fn check_for_help_flag() {
+    if let Some(_) = env::args().find(|arg| arg == "--help" || arg == "-h") {
+        display(
+            &mut 0,
+            vec![
+                "giadd".to_string(),
+                "Stage file in git using a selector".to_string(),
+                "".to_string(),
+                "KEYBINDS:".to_string(),
+                "    j and k to navigate".to_string(),
+                "    space to select a file".to_string(),
+                "    enter to stage selected files".to_string(),
+                "    q to exit".to_string(),
+            ],
+        );
+
+        process::exit(0);
+    }
 }
 
 fn select_file_under_selector(selector_position: usize, files: &mut Vec<File>) {
