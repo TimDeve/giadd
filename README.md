@@ -10,7 +10,7 @@ $ giadd
 ```
 
 ## Keybinds
-j and k to navigate
-q, escape to exit
-space to select a file
-enter to stage selected files
+j and k to navigate  
+q, escape to exit  
+space to select a file  
+enter to stage selected files  
