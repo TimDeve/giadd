@@ -45,7 +45,7 @@ fn main() {
 
     let mut files = marshal_status_in_files(
         String::from_utf8(git_status_output.stdout).expect("Problem parsing status"),
-    );
+    ).unwrap();
 
     loop {
         display(

@@ -117,7 +117,7 @@ fn move_selector_up(selector_position: &mut usize, files_length: usize) {
 pub fn git_status() -> process::Output {
     process::Command::new("git")
         .arg("status")
-        .arg("--porcelain")
+        .arg("--porcelain=v1")
         .output()
         .expect("Failed to get git status")
 }
@@ -130,14 +130,27 @@ fn git_add(paths: Vec<String>) -> process::Output {
         .expect("Failed to add files")
 }
 
-pub fn marshal_status_in_files(status: String) -> Vec<File> {
-    status
+pub fn marshal_status_in_files(status: String) -> Result<Vec<File>, &'static str> {
+    let files: Result<Vec<File>, &str> = status
         .lines()
-        .map(|line| File {
-            status: line[0..2].to_string(),
-            path: line[3..].to_string(),
-            is_selected: false,
-        }).collect()
+        .map(|line| -> Result<File, &str> {
+            let mut path = line[3..].to_string();
+
+            if path.contains("->") {
+                path = match path.split_whitespace().nth(2) {
+                    None => return Err("Failed to parse status"),
+                    Some(p) => p.to_string(),
+                }
+            }
+
+            return Ok(File {
+                status: line[0..2].to_string(),
+                path,
+                is_selected: false,
+            });
+        }).collect();
+
+    files
 }
 
 pub fn set_terminal_to_raw() {
@@ -217,8 +230,8 @@ mod tests {
 
     #[test]
     fn turns_status_into_files() {
-        let status = String::from(" M src/main.rs\n?? wow");
-        let files = marshal_status_in_files(status);
+        let status = String::from(" M src/main.rs\n?? wow\nCM src/wow.rs -> src/lib.rs");
+        let files = marshal_status_in_files(status).unwrap();
 
         assert_eq!(
             vec![
@@ -230,6 +243,11 @@ mod tests {
                 File {
                     status: String::from("??"),
                     path: String::from("wow"),
+                    is_selected: false,
+                },
+                File {
+                    status: String::from("CM"),
+                    path: String::from("src/lib.rs"),
                     is_selected: false,
                 },
             ],
