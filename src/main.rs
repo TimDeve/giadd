@@ -43,24 +43,28 @@ fn main() {
         };
     }
 
-    let mut files = marshal_status_in_files(
+    match marshal_status_in_files(
         String::from_utf8(git_status_output.stdout).expect("Problem parsing status"),
-    ).unwrap();
-
-    loop {
-        display(
-            &mut max_number_of_lines,
-            add_selector(selector_position, fmt_files_to_strings(&files)),
-        );
-
-        set_terminal_to_raw();
-
-        if let Some(exit_code) = read_input(&mut selector_position, &mut files) {
-            reset_terminal(&original_term);
-            clear_screen(max_number_of_lines);
-            process::exit(exit_code);
-        } else {
-            reset_terminal(&original_term);
+    ) {
+        Err(e) => {
+            eprintln!("{}", e);
+            process::exit(1);
         }
-    }
+        Ok(mut files) => loop {
+            display(
+                &mut max_number_of_lines,
+                add_selector(selector_position, fmt_files_to_strings(&files)),
+            );
+
+            set_terminal_to_raw();
+
+            if let Some(exit_code) = read_input(&mut selector_position, &mut files) {
+                reset_terminal(&original_term);
+                clear_screen(max_number_of_lines);
+                process::exit(exit_code);
+            } else {
+                reset_terminal(&original_term);
+            }
+        },
+    };
 }

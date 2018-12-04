@@ -256,6 +256,14 @@ mod tests {
     }
 
     #[test]
+    fn returns_error_if_status_is_malformed() {
+        let status = String::from(" M src/main.rs\n?? wow\nCM src/wow.rs ->");
+        let error = marshal_status_in_files(status);
+
+        assert_eq!(error, Err("Failed to parse status"))
+    }
+
+    #[test]
     fn files_to_strings() {
         let files = vec![
             File {
