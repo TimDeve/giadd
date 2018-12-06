@@ -73,24 +73,26 @@ impl AppState {
                 Keys::Space => self.select_file_under_selector(),
                 Keys::K => self.move_selector_up(),
                 Keys::J => self.move_selector_down(),
-                Keys::Enter => {
-                    let paths = self.get_selected_files_path();
-                    let output = git_add(paths);
-
-                    if output.status.success() {
-                        print!("{}", String::from_utf8_lossy(&output.stdout));
-                        return Some(0);
-                    } else {
-                        print!("{}", String::from_utf8_lossy(&output.stderr));
-                        return match output.status.code() {
-                            Some(code) => Some(code),
-                            None => Some(1),
-                        };
-                    }
-                }
+                Keys::Enter => return self.add_selected_files(),
             }
         }
         return None;
+    }
+
+    fn add_selected_files(&self) -> Option<i32> {
+        let paths = self.get_selected_files_path();
+        let output = git_add(paths);
+
+        if output.status.success() {
+            print!("{}", String::from_utf8_lossy(&output.stdout));
+            return Some(0);
+        } else {
+            print!("{}", String::from_utf8_lossy(&output.stderr));
+            return match output.status.code() {
+                Some(code) => Some(code),
+                None => Some(1),
+            };
+        }
     }
 
     fn select_file_under_selector(&mut self) {
