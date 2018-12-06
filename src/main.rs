@@ -18,20 +18,11 @@ extern crate giadd;
 extern crate libc;
 extern crate termios;
 
-use giadd::{
-    add_selector, check_for_help_flag, clear_screen, display, fmt_files_to_strings, git_status,
-    marshal_status_in_files, read_input, reset_terminal, set_terminal_to_raw,
-};
-use libc::STDIN_FILENO;
+use giadd::{check_for_help_flag, git_status, AppState};
 use std::process;
-use termios::Termios;
 
 fn main() {
     check_for_help_flag();
-
-    let mut max_number_of_lines = 0;
-    let mut selector_position = 0;
-    let original_term = Termios::from_fd(STDIN_FILENO).unwrap();
 
     let git_status_output = git_status();
 
@@ -43,27 +34,28 @@ fn main() {
         };
     }
 
-    match marshal_status_in_files(
+    let mut app = AppState::new();
+
+    match app.marshal_status_in_files(
         String::from_utf8(git_status_output.stdout).expect("Problem parsing status"),
     ) {
         Err(e) => {
             eprintln!("{}", e);
             process::exit(1);
         }
-        Ok(mut files) => loop {
-            display(
-                &mut max_number_of_lines,
-                add_selector(selector_position, fmt_files_to_strings(&files)),
-            );
+        Ok(()) => loop {
+            let lines = app.add_selector(app.fmt_files_to_strings());
 
-            set_terminal_to_raw();
+            app.display(lines);
 
-            if let Some(exit_code) = read_input(&mut selector_position, &mut files) {
-                reset_terminal(&original_term);
-                clear_screen(max_number_of_lines);
+            app.set_terminal_to_raw();
+
+            if let Some(exit_code) = app.read_input() {
+                app.reset_terminal();
+                app.clear_screen();
                 process::exit(exit_code);
             } else {
-                reset_terminal(&original_term);
+                app.reset_terminal();
             }
         },
     };
