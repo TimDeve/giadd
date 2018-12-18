@@ -158,7 +158,7 @@ impl AppState {
         self.files
             .iter()
             .filter(|file| file.is_selected)
-            .map(|file| file.path.clone())
+            .map(|file| format!(":/{}", file.path))
             .collect()
     }
 
