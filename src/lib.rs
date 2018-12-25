@@ -35,7 +35,7 @@ pub struct File {
     is_selected: bool,
 }
 
-pub struct AppState {
+pub struct App {
     max_number_of_lines: usize,
     selector_position: usize,
     files: Vec<File>,
@@ -43,9 +43,9 @@ pub struct AppState {
     term: Termios,
 }
 
-impl AppState {
-    pub fn new() -> AppState {
-        AppState {
+impl App {
+    pub fn new() -> App {
+        App {
             max_number_of_lines: 0,
             selector_position: 0,
             files: vec![],
@@ -134,7 +134,8 @@ impl AppState {
                     path,
                     is_selected: false,
                 });
-            }).collect();
+            })
+            .collect();
 
         return match file_result {
             Ok(files) => {
@@ -190,7 +191,8 @@ impl AppState {
                     file.status,
                     file.path
                 )
-            }).collect()
+            })
+            .collect()
     }
 
     pub fn clear_screen(&self) {
@@ -259,7 +261,7 @@ mod tests {
     fn turns_status_into_files() {
         let status = String::from(" M src/main.rs\n?? wow\nCM src/wow.rs -> src/lib.rs");
 
-        let mut g = AppState::new();
+        let mut g = App::new();
         g.marshal_status_in_files(status).unwrap();
 
         assert_eq!(
@@ -288,7 +290,7 @@ mod tests {
     fn returns_error_if_status_is_malformed() {
         let status = String::from(" M src/main.rs\n?? wow\nCM src/wow.rs ->");
 
-        let mut g = AppState::new();
+        let mut g = App::new();
         let error = g.marshal_status_in_files(status);
 
         assert_eq!(error, Err("Failed to parse status"))
@@ -296,7 +298,7 @@ mod tests {
 
     #[test]
     fn files_to_strings() {
-        let mut g = AppState::new();
+        let mut g = App::new();
         g.files = vec![
             File {
                 status: String::from("??"),
@@ -321,7 +323,7 @@ mod tests {
 
     #[test]
     fn add_selector_to_string() {
-        let mut g = AppState::new();
+        let mut g = App::new();
         g.selector_position = 1;
 
         let lines = vec![

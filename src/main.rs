@@ -18,7 +18,7 @@ extern crate giadd;
 extern crate libc;
 extern crate termios;
 
-use giadd::{check_for_help_flag, git_status, AppState};
+use giadd::{check_for_help_flag, git_status, App};
 use std::process;
 
 fn main() {
@@ -34,7 +34,7 @@ fn main() {
         };
     }
 
-    let mut app = AppState::new();
+    let mut app = App::new();
 
     match app.marshal_status_in_files(
         String::from_utf8(git_status_output.stdout).expect("Problem parsing status"),
