@@ -178,9 +178,15 @@ impl App {
 
         let lines: Vec<String> = slice
             .iter()
-            .map(|file| {
+            .enumerate()
+            .map(|(i, file)| {
                 format!(
-                    "[{}] {} {}",
+                    "{} [{}] {} {}",
+                    if self.selector_position == i {
+                        ">"
+                    } else {
+                        " "
+                    },
                     if file.is_selected { "*" } else { " " },
                     file.status,
                     file.path
@@ -188,26 +194,12 @@ impl App {
             })
             .collect();
 
-        let mut new_lines: Vec<String> = vec![];
-
-        for (i, line) in lines.iter().enumerate() {
-            new_lines.push(format!(
-                "{} {}",
-                if self.selector_position == i {
-                    ">"
-                } else {
-                    " "
-                },
-                line
-            ))
-        }
-
-        if new_lines.len() > get_screen_height() {
-            new_lines[self.top_of_screen_position
+        if lines.len() > get_screen_height() {
+            lines[self.top_of_screen_position
                 ..(self.top_of_screen_position + get_screen_height() - 1)]
                 .to_vec()
         } else {
-            new_lines
+            lines
         }
     }
 
