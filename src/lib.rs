@@ -12,7 +12,7 @@ use std::io;
 use std::io::Read;
 use std::io::Write;
 use std::process;
-use terminal_size::{terminal_size, Width};
+use terminal_size::{terminal_size, Height, Width};
 use termios::{cfmakeraw, tcsetattr, Termios, TCSANOW};
 
 enum_from_primitive! {
@@ -38,6 +38,7 @@ pub struct File {
 pub struct App {
     max_number_of_lines: usize,
     selector_position: usize,
+    top_of_screen_position: usize,
     files: Vec<File>,
     original_term: Termios,
     term: Termios,
@@ -47,6 +48,7 @@ impl App {
     pub fn new() -> App {
         App {
             max_number_of_lines: 0,
+            top_of_screen_position: 0,
             selector_position: 0,
             files: vec![],
             original_term: Termios::from_fd(STDIN_FILENO).unwrap(),
@@ -106,6 +108,10 @@ impl App {
         } else {
             self.selector_position = self.selector_position + 1;
         }
+
+        if self.selector_position > (self.top_of_screen_position + get_screen_height() - 2) {
+            self.top_of_screen_position = self.top_of_screen_position + 1;
+        }
     }
 
     fn move_selector_up(&mut self) {
@@ -113,6 +119,10 @@ impl App {
             self.selector_position = self.files.len() - 1;
         } else {
             self.selector_position = self.selector_position - 1;
+        }
+
+        if self.selector_position < self.top_of_screen_position {
+            self.top_of_screen_position = self.top_of_screen_position - 1;
         }
     }
 
@@ -163,7 +173,21 @@ impl App {
             .collect()
     }
 
-    pub fn add_selector(&self, lines: Vec<String>) -> Vec<String> {
+    pub fn fmt_files_to_strings(&self) -> Vec<String> {
+        let slice = &self.files[..];
+
+        let lines: Vec<String> = slice
+            .iter()
+            .map(|file| {
+                format!(
+                    "[{}] {} {}",
+                    if file.is_selected { "*" } else { " " },
+                    file.status,
+                    file.path
+                )
+            })
+            .collect();
+
         let mut new_lines: Vec<String> = vec![];
 
         for (i, line) in lines.iter().enumerate() {
@@ -178,21 +202,13 @@ impl App {
             ))
         }
 
-        new_lines
-    }
-
-    pub fn fmt_files_to_strings(&self) -> Vec<String> {
-        self.files
-            .iter()
-            .map(|file| {
-                format!(
-                    "[{}] {} {}",
-                    if file.is_selected { "*" } else { " " },
-                    file.status,
-                    file.path
-                )
-            })
-            .collect()
+        if new_lines.len() > get_screen_height() {
+            new_lines[self.top_of_screen_position
+                ..(self.top_of_screen_position + get_screen_height() - 1)]
+                .to_vec()
+        } else {
+            new_lines
+        }
     }
 
     pub fn clear_screen(&self) {
@@ -214,6 +230,12 @@ impl App {
 
         println!("{}", lines.join("\n"));
     }
+}
+
+pub fn get_screen_height() -> usize {
+    let (_, Height(h)) = terminal_size().unwrap();
+
+    h as usize
 }
 
 pub fn check_for_help_flag() {
@@ -311,30 +333,14 @@ mod tests {
                 is_selected: false,
             },
         ];
+        g.selector_position = 1;
 
         assert_eq!(
             g.fmt_files_to_strings(),
             vec![
-                String::from("[*] ?? /hello"),
-                String::from("[ ]  M /is-it-me-you're-looking-for")
+                String::from("  [*] ?? /hello"),
+                String::from("> [ ]  M /is-it-me-you're-looking-for")
             ]
         )
-    }
-
-    #[test]
-    fn add_selector_to_string() {
-        let mut g = App::new();
-        g.selector_position = 1;
-
-        let lines = vec![
-            "Line 1".to_string(),
-            "Line 2".to_string(),
-            "Line 3".to_string(),
-        ];
-
-        assert_eq!(
-            g.add_selector(lines),
-            vec!["  Line 1", "> Line 2", "  Line 3"]
-        );
     }
 }

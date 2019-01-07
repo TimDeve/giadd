@@ -44,7 +44,7 @@ fn main() {
             process::exit(1);
         }
         Ok(()) => loop {
-            let lines = app.add_selector(app.fmt_files_to_strings());
+            let lines = app.fmt_files_to_strings();
 
             app.display(lines);
 
