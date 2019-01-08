@@ -15,10 +15,9 @@
 //!
 
 extern crate giadd;
-extern crate libc;
-extern crate termios;
+extern crate selector;
 
-use giadd::{check_for_help_flag, git_status, App};
+use giadd::{check_for_help_flag, git_add, git_status, marshal_statuses_into_paths};
 use std::process;
 
 fn main() {
@@ -34,29 +33,25 @@ fn main() {
         };
     }
 
-    let mut app = App::new();
+    let lines: Vec<String> = String::from_utf8(git_status_output.stdout)
+        .expect("Problem parsing status")
+        .lines()
+        .map(|line| line.to_string())
+        .collect();
 
-    match app.marshal_status_in_files(
-        String::from_utf8(git_status_output.stdout).expect("Problem parsing status"),
-    ) {
-        Err(e) => {
-            eprintln!("{}", e);
-            process::exit(1);
-        }
-        Ok(()) => loop {
-            let lines = app.fmt_files_to_strings();
+    let selected_lines = selector::select(lines);
+    let paths = marshal_statuses_into_paths(selected_lines).unwrap();
 
-            app.display(lines);
+    let output = git_add(paths);
 
-            app.set_terminal_to_raw();
-
-            if let Some(exit_code) = app.read_input() {
-                app.reset_terminal();
-                app.clear_screen();
-                process::exit(exit_code);
-            } else {
-                app.reset_terminal();
-            }
-        },
-    };
+    if output.status.success() {
+        print!("{}", String::from_utf8_lossy(&output.stdout));
+        process::exit(0);
+    } else {
+        eprint!("{}", String::from_utf8_lossy(&output.stderr));
+        match output.status.code() {
+            Some(code) => process::exit(code),
+            None => process::exit(1),
+        };
+    }
 }
