@@ -5,9 +5,10 @@ extern crate num;
 extern crate terminal_size;
 extern crate termios;
 
-use libc::STDIN_FILENO;
 use num::FromPrimitive;
+use std::fs::File;
 use std::io::{Read, Write};
+use std::os::unix::io::AsRawFd;
 use std::{io, process};
 use terminal_size::{terminal_size, Height, Width};
 use termios::{cfmakeraw, tcsetattr, Termios, TCSANOW};
@@ -58,27 +59,30 @@ struct SelectorState {
     lines: Vec<Line>,
     original_term: Termios,
     term: Termios,
+    tty: File,
 }
 
 impl SelectorState {
     fn new(strings: Vec<String>) -> SelectorState {
+        let tty = File::open("/dev/tty").unwrap();
+
         SelectorState {
             max_number_of_lines: 0,
             top_of_screen_index: 0,
             selector_index: 0,
             lines: marshal_strings_into_lines(strings),
-            original_term: Termios::from_fd(STDIN_FILENO).unwrap(),
-            term: Termios::from_fd(STDIN_FILENO).unwrap(),
+            original_term: Termios::from_fd(tty.as_raw_fd()).unwrap(),
+            term: Termios::from_fd(tty.as_raw_fd()).unwrap(),
+            tty,
         }
     }
 
     fn read_input(&mut self) -> Option<Vec<String>> {
         let stdout = io::stdout();
-        let mut reader = io::stdin();
         let mut buffer = [0; 3];
 
         stdout.lock().flush().unwrap();
-        reader.read(&mut buffer).unwrap();
+        self.tty.read(&mut buffer).unwrap();
 
         if buffer[1] != 0 {
             return None;
@@ -180,11 +184,11 @@ impl SelectorState {
 
     fn set_terminal_to_raw(&mut self) {
         cfmakeraw(&mut self.term);
-        tcsetattr(STDIN_FILENO, TCSANOW, &mut self.term).unwrap();
+        tcsetattr(self.tty.as_raw_fd(), TCSANOW, &mut self.term).unwrap();
     }
 
     fn reset_terminal(&self) {
-        tcsetattr(STDIN_FILENO, TCSANOW, &self.original_term).unwrap();
+        tcsetattr(self.tty.as_raw_fd(), TCSANOW, &self.original_term).unwrap();
     }
 
     fn cleanup_and_exit(&self, exit_code: i32) {
