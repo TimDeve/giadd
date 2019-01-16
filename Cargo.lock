@@ -91,7 +91,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "selector"
 version = "0.1.0"
-source = "git+https://github.com/TimDeve/selector.git#83926ee252d51352d8c1b1513a86c6e2ae98bcf0"
+source = "git+https://github.com/TimDeve/selector.git#d75c20712829846d49c5134f5c133cc60db814c3"
 dependencies = [
  "enum_primitive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.47 (registry+https://github.com/rust-lang/crates.io-index)",
