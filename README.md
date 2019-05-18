@@ -1,6 +1,6 @@
 # giadd
 
-Stage files in git using a selector
+Stage files in git using a [selector](https://github.com/TimDeve/selector)
 
 ```sh
 $ giadd
