@@ -45,7 +45,9 @@ pub fn marshal_statuses_into_paths(statuses: Vec<String>) -> Result<Vec<String>,
                 }
             }
 
-            Ok(path)
+            let path_from_git_root = format!(":/{}", path);
+
+            Ok(path_from_git_root)
         })
         .collect();
 }
@@ -67,9 +69,9 @@ mod tests {
         assert_eq!(
             results,
             Ok(vec![
-                "src/main.rs".to_string(),
-                "wow".to_string(),
-                "src/lib.rs".to_string(),
+                ":/src/main.rs".to_string(),
+                ":/wow".to_string(),
+                ":/src/lib.rs".to_string(),
             ])
         )
     }
